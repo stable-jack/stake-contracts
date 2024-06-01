@@ -1,0 +1,14 @@
+node_modules
+.env
+coverage
+coverage*.json
+scripts/@types
+.eslintcache
+
+#Hardhat files
+cache
+artifacts
+
+.store
+
+deployments/fork*
