@@ -50,8 +50,7 @@ contract ERC1155Staking is Initializable, ReentrancyGuardUpgradeable, OwnableUpg
     // Initializer function to replace the constructor
     function initialize(address _hexagate) external initializer {
         __ReentrancyGuard_init();
-        __Ownable_init();
-
+        __Ownable_init(msg.sender);
         hexagate = _hexagate;
     }
 
@@ -139,7 +138,7 @@ contract ERC1155Staking is Initializable, ReentrancyGuardUpgradeable, OwnableUpg
         require(supportedTokens[tokenId], "Token not supported");
 
         for (uint256 i = 0; i < supportedTokensArray.length; i++) {
-            if (userBalances[supportedTokensArray[i]][tokenId] > 0) {
+            if (userBalances[address(this)][supportedTokensArray[i]] > 0) {
                 revert("Users have staked tokens");
             }
         }
