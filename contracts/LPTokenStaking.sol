@@ -2,11 +2,14 @@
 pragma solidity ^0.8.20;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
+    using SafeERC20 for IERC20;
+
     struct UserSnapshot {
         uint256 initialAmountStaked;
         address token;
@@ -72,8 +75,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
         require(amount > 0, "Amount must be greater than zero");
 
         uint256 balanceBefore = IERC20(token).balanceOf(address(this));
-        bool success = IERC20(token).transferFrom(msg.sender, address(this), amount);
-        require(success, "Token transfer failed");
+        IERC20(token).safeTransferFrom(msg.sender, address(this), amount); // Use safeTransferFrom
 
         uint256 balanceAfter = IERC20(token).balanceOf(address(this));
         uint256 actualReceived = balanceAfter - balanceBefore;
@@ -95,6 +97,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
 
         emit Staked(msg.sender, actualReceived, token);
     }
+
 
     function unlock(address token) external whenNotPaused nonReentrant {
         require(supportedLPTokens[token], "Token not supported");
@@ -124,8 +127,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
         uint256 amountToUnstake = unlockInfo.amount;
 
         uint256 balanceBefore = IERC20(token).balanceOf(address(this));
-        bool success = IERC20(token).transfer(msg.sender, amountToUnstake);
-        require(success, "Token transfer failed");
+        IERC20(token).safeTransfer(msg.sender, amountToUnstake); // Use safeTransfer
 
         uint256 balanceAfter = IERC20(token).balanceOf(address(this));
         uint256 actualTransferred = balanceBefore - balanceAfter;
@@ -140,6 +142,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
 
         emit Unstaked(msg.sender, actualTransferred, token);
     }
+
 
     function balanceOf(address token, address userAddress) external view returns (uint256) {
         uint256 balance = userBalances[userAddress][token];

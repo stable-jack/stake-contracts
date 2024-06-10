@@ -187,6 +187,13 @@ describe("LPStaking", function () {
             // Fast forward time by 1 week
             await ethers.provider.send("evm_increaseTime", [604800]);
             await ethers.provider.send("evm_mine");
+
+            const FakeERC20 = await ethers.getContractFactory("FakeERC20", owner);
+            this.fakeToken = await FakeERC20.deploy("Fake Token", "FAKE", 18, ethers.parseEther("1000").toString());
+    
+            await lpStaking.addLPTokenSupport(await this.fakeToken.getAddress());
+            await this.fakeToken.transfer(user1.address, ethers.parseEther("100"));
+            await this.fakeToken.connect(user1).approve(lpStaking.getAddress(), ethers.parseEther("50"));
         });
 
         it("Should unstake tokens correctly", async function () {
@@ -231,24 +238,16 @@ describe("LPStaking", function () {
                 .to.be.revertedWith("Token not supported");
         });
 
-        it("Should revert if ERC20 transfer returns false", async function () {
-            const FakeERC20 = await ethers.getContractFactory("FakeERC20", owner);
-            const fakeToken = await FakeERC20.deploy("Fake Token", "FAKE", 18, ethers.parseEther("1000"));
-    
-            await lpStaking.addLPTokenSupport(await fakeToken.getAddress());
-            await fakeToken.transfer(user1.address, ethers.parseEther("100"));
-            await fakeToken.connect(user1).approve(lpStaking.getAddress(), ethers.parseEther("50"));
-            await lpStaking.connect(user1).stake(ethers.parseEther("50"), await fakeToken.getAddress());
-            await lpStaking.connect(user1).unlock(await fakeToken.getAddress());
+        it("Should revert if ERC20 safeTransfer returns false", async function () {
+            await lpStaking.connect(user1).stake(ethers.parseEther("50"), await this.fakeToken.getAddress());
+            await lpStaking.connect(user1).unlock(await this.fakeToken.getAddress());
     
             // Fast forward time by 1 week
             await ethers.provider.send("evm_increaseTime", [604800]);
             await ethers.provider.send("evm_mine");
     
-            // expected to fail
             await expect(lpStaking.connect(user1).unstake(await fakeToken.getAddress()))
-                .to.be.revertedWith('Token transfer failed');
-
+                .to.be.revertedWith('SafeERC20: ERC20 operation did not succeed');
         });
 
         it("Should handle ERC20 tokens with transfer fees correctly on unstake", async function () {
