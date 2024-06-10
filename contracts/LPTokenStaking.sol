@@ -159,7 +159,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
     function balanceOfAllTokens(address userAddress) external view returns (uint256[] memory, address[] memory) {
         uint256[] memory balances = new uint256[](supportedTokensArray.length);
 
-        for (uint256 i = 0; i < supportedTokensArray.length; i++) {
+        for (uint256 i = 0; i < supportedTokensArray.length; ++i) {
             balances[i] = userBalances[userAddress][supportedTokensArray[i]];
         }
 
@@ -181,7 +181,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
         supportedLPTokens[token] = false;
 
         // Remove token from the supportedTokensArray
-        for (uint256 i = 0; i < supportedTokensArray.length; i++) {
+        for (uint256 i = 0; i < supportedTokensArray.length; ++i) {
             if (supportedTokensArray[i] == token) {
                 supportedTokensArray[i] = supportedTokensArray[supportedTokensArray.length - 1];
                 supportedTokensArray.pop();
