@@ -100,6 +100,18 @@ describe("LPStaking", function () {
         it("Should revert if amount is zero", async function () {
             await expect(lpStaking.connect(user1).stake(0, await token.getAddress())).to.be.revertedWith("Amount must be greater than zero");
         });
+
+        it("Should revert if ERC20 transferFrom returns false", async function () {
+            const FakeERC20 = await ethers.getContractFactory("FakeERC20", owner);
+            const fakeToken = await FakeERC20.deploy("Fake Token", "FAKE", 18, ethers.parseEther("1000"));
+    
+            await lpStaking.addLPTokenSupport(await fakeToken.getAddress());
+            await fakeToken.transfer(user1.address, ethers.parseEther("100"));
+            await fakeToken.connect(user1).approve(lpStaking.getAddress(), ethers.parseEther("50"));
+    
+            await expect(lpStaking.connect(user1).stake(ethers.parseEther("50"), await fakeToken.getAddress()))
+                .to.be.revertedWith("Token transfer failed");
+        });
     });
 
     describe("Unlocking", function () {
@@ -189,6 +201,25 @@ describe("LPStaking", function () {
         it("Should revert if insufficient unlocked amount", async function () {
             await expect(lpStaking.connect(user1).unstake(ethers.parseEther("50"), await token.getAddress()))
                 .to.be.revertedWith("Insufficient unlocked amount");
+        });
+
+        it("Should revert if ERC20 transfer returns false", async function () {
+            const FakeERC20 = await ethers.getContractFactory("FakeERC20", owner);
+            const fakeToken = await FakeERC20.deploy("Fake Token", "FAKE", 18, ethers.parseEther("1000"));
+    
+            await lpStaking.addLPTokenSupport(await fakeToken.getAddress());
+            await fakeToken.transfer(user1.address, ethers.parseEther("100"));
+            await fakeToken.connect(user1).approve(lpStaking.getAddress(), ethers.parseEther("50"));
+            await lpStaking.connect(user1).stake(ethers.parseEther("50"), await fakeToken.getAddress());
+            await lpStaking.connect(user1).unlock(ethers.parseEther("25"), await fakeToken.getAddress());
+    
+            // Fast forward time by 1 week
+            await ethers.provider.send("evm_increaseTime", [604800]);
+            await ethers.provider.send("evm_mine");
+    
+            // expected to fail
+            await expect(lpStaking.connect(user1).unstake(ethers.parseEther("25"), await fakeToken.getAddress()))
+                .to.be.revertedWith('Token transfer failed');
         });
     });
 

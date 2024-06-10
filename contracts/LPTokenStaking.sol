@@ -70,7 +70,8 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
         require(supportedLPTokens[token], "Token not supported");
         require(amount > 0, "Amount must be greater than zero");
 
-        IERC20(token).transferFrom(msg.sender, address(this), amount);
+        bool success = IERC20(token).transferFrom(msg.sender, address(this), amount);
+        require(success, "Token transfer failed");
 
         if (userBalances[msg.sender][token] == 0) {
             tokenUserCount[token]++;
@@ -118,7 +119,8 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
             tokenUserCount[token]--;
         }
 
-        IERC20(token).transfer(msg.sender, amount);
+        bool success = IERC20(token).transfer(msg.sender, amount);
+        require(success, "Token transfer failed");
 
         emit Unstaked(msg.sender, amount, token);
     }
