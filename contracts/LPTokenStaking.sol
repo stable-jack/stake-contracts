@@ -16,6 +16,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
         uint256 amount;
         address token;
         uint256 unlockAt;
+        bool initialized;
     }
 
     address public hexagate;
@@ -95,30 +96,35 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
         emit Staked(msg.sender, actualReceived, token);
     }
 
-    function unlock(uint256 amount, address token) external whenNotPaused nonReentrant {
+    function unlock(address token) external whenNotPaused nonReentrant {
         require(supportedLPTokens[token], "Token not supported");
-        require(amount > 0, "Amount must be greater than zero");
-        require(userBalances[msg.sender][token] >= amount, "Insufficient balance");
+        uint256 userBalance = userBalances[msg.sender][token];
+        require(userBalance > 0, "Insufficient balance");
+
+        UserUnlock storage unlockInfo = userUnlocks[msg.sender][token];
+        require(!unlockInfo.initialized, "Unlock already initialized");
 
         userUnlocks[msg.sender][token] = UserUnlock({
-            amount: amount,
+            amount: userBalance,
             token: token,
-            unlockAt: block.timestamp + unlockDuration
+            unlockAt: block.timestamp + unlockDuration,
+            initialized: true
         });
 
-        emit UnlockStarted(msg.sender, amount, token, block.timestamp + unlockDuration);
+        emit UnlockStarted(msg.sender, userBalance, token, block.timestamp + unlockDuration);
     }
 
-    function unstake(uint256 amount, address token) external whenNotPaused nonReentrant {
+    function unstake(address token) external whenNotPaused nonReentrant {
         require(supportedLPTokens[token], "Token not supported");
-        require(amount > 0, "Amount must be greater than zero");
 
         UserUnlock memory unlockInfo = userUnlocks[msg.sender][token];
-        require(unlockInfo.amount >= amount, "Insufficient unlocked amount");
         require(block.timestamp >= unlockInfo.unlockAt, "Unlock period not completed");
+        require(unlockInfo.amount > 0, "No unlocked amount available");
+
+        uint256 amountToUnstake = unlockInfo.amount;
 
         uint256 balanceBefore = IERC20(token).balanceOf(address(this));
-        bool success = IERC20(token).transfer(msg.sender, amount);
+        bool success = IERC20(token).transfer(msg.sender, amountToUnstake);
         require(success, "Token transfer failed");
 
         uint256 balanceAfter = IERC20(token).balanceOf(address(this));
@@ -126,7 +132,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
         require(actualTransferred > 0, "Token transfer failed");
 
         userBalances[msg.sender][token] -= actualTransferred;
-        userUnlocks[msg.sender][token].amount -= actualTransferred;
+        delete userUnlocks[msg.sender][token]; // Clear the unlock info after unstaking
 
         if (userBalances[msg.sender][token] == 0) {
             tokenUserCount[token]--;
@@ -136,7 +142,14 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
     }
 
     function balanceOf(address token, address userAddress) external view returns (uint256) {
-        return userBalances[userAddress][token];
+        uint256 balance = userBalances[userAddress][token];
+        UserUnlock memory unlockInfo = userUnlocks[userAddress][token];
+
+        if (unlockInfo.initialized && block.timestamp >= unlockInfo.unlockAt) {
+            return 0; // If tokens are unlocked, return 0 as they are ready to be unstaked
+        }
+
+        return balance;
     }
 
     function balanceOfAllTokens(address userAddress) external view returns (uint256[] memory, address[] memory) {

@@ -142,38 +142,38 @@ describe("LPStaking", function () {
             await lpStaking.connect(user1).stake(ethers.parseEther("50"), await token.getAddress());
         });
 
-        it("Should unlock tokens correctly", async function () {
-            await lpStaking.connect(user1).unlock(ethers.parseEther("25"), await token.getAddress());
+        it("Should unlock the entire staked amount", async function () {
+            await lpStaking.connect(user1).unlock(await token.getAddress());
+    
             const unlockInfo = await lpStaking.userUnlocks(user1.address, await token.getAddress());
-
-            expect(unlockInfo.amount).to.equal(ethers.parseEther("25"));
+            expect(unlockInfo.amount).to.equal(ethers.parseEther("50"));
+        });
+    
+        it("Should update unlock time correctly", async function () {
+            await lpStaking.connect(user1).unlock(await token.getAddress());
+            
+            const block = await ethers.provider.getBlock('latest');
+            if (!block) {
+                throw new Error("Failed to fetch the latest block.");
+            }
+            const unlockTime = block.timestamp+ 604800;
+    
+            const unlockInfo = await lpStaking.userUnlocks(user1.address, await token.getAddress());
+            expect(unlockInfo.unlockAt).to.be.closeTo(unlockTime, 10);
         });
 
-        // it("Should emit UnlockStarted event", async function () {
-        //     const block = await ethers.provider.getBlock("latest");
-        //     if (block) {
-        //         const unlockTime = block.timestamp + 604800; // 604800 is the number of seconds in one week
-        //         await expect(lpStaking.connect(user1).unlock(ethers.parseEther("25"), await token.getAddress()))
-        //         .to.emit(lpStaking, "UnlockStarted")
-        //         .withArgs(user1.address, ethers.parseEther("25"), await token.getAddress(), unlockTime);
-        //     } else {
-        //         console.error("Failed to fetch the latest block.");
-        //     }
-        // });
+        it("Should revert if unlock is called again before unstaking", async function () {
+            await lpStaking.connect(user1).unlock(await token.getAddress());
+    
+            await expect(lpStaking.connect(user1).unlock(await token.getAddress()))
+                .to.be.revertedWith("Unlock already initialized");
+        });
 
         it("Should revert if token is not supported", async function () {
-            await expect(lpStaking.connect(user1).unlock(ethers.parseEther("25"), user2.address))
+            await expect(lpStaking.connect(user1).unlock(user2.address))
                 .to.be.revertedWith("Token not supported");
         });
 
-        it("Should revert if amount is zero", async function () {
-            await expect(lpStaking.connect(user1).unlock(0, await token.getAddress())).to.be.revertedWith("Amount must be greater than zero");
-        });
-
-        it("Should revert if insufficient balance", async function () {
-            await expect(lpStaking.connect(user1).unlock(ethers.parseEther("75"), await token.getAddress()))
-                .to.be.revertedWith("Insufficient balance");
-        });
     });
 
     describe("Unstaking", function () {
@@ -182,7 +182,7 @@ describe("LPStaking", function () {
             await token.transfer(user1.address, ethers.parseEther("100"));
             await token.connect(user1).approve(lpStaking.getAddress(), ethers.parseEther("50"));
             await lpStaking.connect(user1).stake(ethers.parseEther("50"), await token.getAddress());
-            await lpStaking.connect(user1).unlock(ethers.parseEther("25"), await token.getAddress());
+            await lpStaking.connect(user1).unlock(await token.getAddress());
 
             // Fast forward time by 1 week
             await ethers.provider.send("evm_increaseTime", [604800]);
@@ -190,37 +190,45 @@ describe("LPStaking", function () {
         });
 
         it("Should unstake tokens correctly", async function () {
-            await lpStaking.connect(user1).unstake(ethers.parseEther("25"), await token.getAddress());
+            await lpStaking.connect(user1).unstake(await token.getAddress());
 
-            expect(await token.balanceOf(user1.address)).to.equal(ethers.parseEther("75"));
-            expect(await lpStaking.balanceOf(await token.getAddress(), user1.address)).to.equal(ethers.parseEther("25"));
+            expect(await token.balanceOf(user1.address)).to.equal(ethers.parseEther("100"));
+            expect(await lpStaking.balanceOf(await token.getAddress(), user1.address)).to.equal(ethers.parseEther("0"));
+        });
+
+        it("Should unstake the entire unlocked amount", async function () {
+            await lpStaking.connect(user1).unstake(await token.getAddress());
+    
+            const userBalance = await token.balanceOf(user1.address);
+            const contractBalance = await token.balanceOf(lpStaking.getAddress());
+            const stakedBalance = await lpStaking.balanceOf(await token.getAddress(), user1.address);
+    
+            // Check that the entire unlocked amount is unstaked
+            expect(userBalance).to.equal(ethers.parseEther("100"));
+            expect(contractBalance).to.equal(ethers.parseEther("0"));
+            expect(stakedBalance).to.equal(ethers.parseEther("0"));
+        });
+    
+        it("Should update unlock time correctly", async function () {
+            const block = await ethers.provider.getBlock('latest');
+            if (!block) {
+                throw new Error("Failed to fetch the latest block.");
+            }
+            const unlockTime = block.timestamp + 604800;
+    
+            const unlockInfo = await lpStaking.userUnlocks(user1.address, await token.getAddress());
+            expect(unlockInfo.unlockAt).to.be.closeTo(unlockTime, 1000000);
         });
 
         it("Should emit Unstaked event", async function () {
-            await expect(lpStaking.connect(user1).unstake(ethers.parseEther("25"), await token.getAddress()))
+            await expect(lpStaking.connect(user1).unstake(await token.getAddress()))
                 .to.emit(lpStaking, "Unstaked")
-                .withArgs(user1.address, ethers.parseEther("25"), await token.getAddress());
+                .withArgs(user1.address, ethers.parseEther("50"), await token.getAddress());
         });
 
         it("Should revert if token is not supported", async function () {
-            await expect(lpStaking.connect(user1).unstake(ethers.parseEther("25"), user2.address))
+            await expect(lpStaking.connect(user1).unstake( user2.address))
                 .to.be.revertedWith("Token not supported");
-        });
-
-        it("Should revert if amount is zero", async function () {
-            await expect(lpStaking.connect(user1).unstake(0, await token.getAddress())).to.be.revertedWith("Amount must be greater than zero");
-        });
-
-        it("Should revert if unlock period not completed", async function () {
-            await lpStaking.connect(user1).unlock(ethers.parseEther("10"), await token.getAddress());
-
-            await expect(lpStaking.connect(user1).unstake(ethers.parseEther("10"), await token.getAddress()))
-                .to.be.revertedWith("Unlock period not completed");
-        });
-
-        it("Should revert if insufficient unlocked amount", async function () {
-            await expect(lpStaking.connect(user1).unstake(ethers.parseEther("50"), await token.getAddress()))
-                .to.be.revertedWith("Insufficient unlocked amount");
         });
 
         it("Should revert if ERC20 transfer returns false", async function () {
@@ -231,14 +239,14 @@ describe("LPStaking", function () {
             await fakeToken.transfer(user1.address, ethers.parseEther("100"));
             await fakeToken.connect(user1).approve(lpStaking.getAddress(), ethers.parseEther("50"));
             await lpStaking.connect(user1).stake(ethers.parseEther("50"), await fakeToken.getAddress());
-            await lpStaking.connect(user1).unlock(ethers.parseEther("25"), await fakeToken.getAddress());
+            await lpStaking.connect(user1).unlock(await fakeToken.getAddress());
     
             // Fast forward time by 1 week
             await ethers.provider.send("evm_increaseTime", [604800]);
             await ethers.provider.send("evm_mine");
     
             // expected to fail
-            await expect(lpStaking.connect(user1).unstake(ethers.parseEther("25"), await fakeToken.getAddress()))
+            await expect(lpStaking.connect(user1).unstake(await fakeToken.getAddress()))
                 .to.be.revertedWith('Token transfer failed');
 
         });
@@ -251,18 +259,18 @@ describe("LPStaking", function () {
             await feeToken.transfer(user1.address, ethers.parseEther("100"));
             await feeToken.connect(user1).approve(lpStaking.getAddress(), ethers.parseEther("50"));
             await lpStaking.connect(user1).stake(ethers.parseEther("50"), await feeToken.getAddress());
-            await lpStaking.connect(user1).unlock(ethers.parseEther("25"), await feeToken.getAddress());
+            await lpStaking.connect(user1).unlock(await feeToken.getAddress());
     
             // Fast forward time by 1 week
             await ethers.provider.send("evm_increaseTime", [604800]);
             await ethers.provider.send("evm_mine");
     
-            await lpStaking.connect(user1).unstake(ethers.parseEther("25"), await feeToken.getAddress());
+            await lpStaking.connect(user1).unstake(await feeToken.getAddress());
     
             const userBalance = await feeToken.balanceOf(user1.address);
     
             // Check that the actual received amount is less due to the transfer fee
-            expect(userBalance).to.be.lessThan(ethers.parseEther("75"));
+            expect(userBalance).to.be.lessThan(ethers.parseEther("100"));
         });
 
     });
@@ -297,13 +305,13 @@ describe("LPStaking", function () {
 
         it("Should revert unlock when paused", async function () {
             await lpStaking.connect(hexagate).pause();
-            await expect(lpStaking.connect(user1).unlock(ethers.parseEther("25"), await token.getAddress()))
+            await expect(lpStaking.connect(user1).unlock(await token.getAddress()))
                 .to.be.revertedWith("Contract is paused");
         });
 
         it("Should revert unstake when paused", async function () {
             await lpStaking.connect(hexagate).pause();
-            await expect(lpStaking.connect(user1).unstake(ethers.parseEther("25"), await token.getAddress()))
+            await expect(lpStaking.connect(user1).unstake(await token.getAddress()))
                 .to.be.revertedWith("Contract is paused");
         });
     });
