@@ -190,4 +190,10 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
     function getAllSupportedTokens() public view returns (address[] memory) {
         return supportedTokensArray;
     }
+
+    // Add the updateHexagateAddress function
+    function updateHexagateAddress(address newHexagate) external onlyOwner {
+        require(newHexagate != address(0), "New hexagate address cannot be the zero address");
+        hexagate = newHexagate;
+    }
 }
