@@ -74,14 +74,14 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
 
     function stake(uint256 amount, address token) external whenNotPaused nonReentrant {
         require(supportedLPTokens[token], "Token not supported");
-        require(amount > 0, "Amount must be greater than zero");
+        require(amount != 0, "Amount must be greater than zero");
 
         uint256 balanceBefore = IERC20(token).balanceOf(address(this));
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount); // Use safeTransferFrom
 
         uint256 balanceAfter = IERC20(token).balanceOf(address(this));
         uint256 actualReceived = balanceAfter - balanceBefore;
-        require(actualReceived > 0, "Token transfer failed");
+        require(actualReceived != 0, "Token transfer failed");
 
         if (userBalances[msg.sender][token] == 0) {
             tokenUserCount[token]++;
@@ -104,7 +104,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
     function unlock(address token) external whenNotPaused nonReentrant {
         require(supportedLPTokens[token], "Token not supported");
         uint256 userBalance = userBalances[msg.sender][token];
-        require(userBalance > 0, "Insufficient balance");
+        require(userBalance != 0, "Insufficient balance");
 
         UserUnlock storage unlockInfo = userUnlocks[msg.sender][token];
         require(!unlockInfo.initialized, "Unlock already initialized");
@@ -124,7 +124,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
 
         UserUnlock memory unlockInfo = userUnlocks[msg.sender][token];
         require(block.timestamp >= unlockInfo.unlockAt, "Unlock period not completed");
-        require(unlockInfo.amount > 0, "No unlocked amount available");
+        require(unlockInfo.amount != 0, "No unlocked amount available");
 
         uint256 amountToUnstake = unlockInfo.amount;
 
@@ -133,7 +133,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
 
         uint256 balanceAfter = IERC20(token).balanceOf(address(this));
         uint256 actualTransferred = balanceBefore - balanceAfter;
-        require(actualTransferred > 0, "Token transfer failed");
+        require(actualTransferred != 0, "Token transfer failed");
 
         userBalances[msg.sender][token] -= actualTransferred;
         delete userUnlocks[msg.sender][token]; // Clear the unlock info after unstaking
