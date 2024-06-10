@@ -54,6 +54,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
 
     // Initializer function to replace the constructor
     function initialize(address _hexagate) external initializer {
+        require(_hexagate != address(0), "New hexagate address cannot be the zero address");
         __ReentrancyGuard_init();
         __Ownable_init(msg.sender);
 
@@ -143,7 +144,6 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
         emit Unstaked(msg.sender, actualTransferred, token);
     }
 
-
     function balanceOf(address token, address userAddress) external view returns (uint256) {
         uint256 balance = userBalances[userAddress][token];
         UserUnlock memory unlockInfo = userUnlocks[userAddress][token];
@@ -167,6 +167,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
 
     function addLPTokenSupport(address token) external onlyOwner {
         require(!supportedLPTokens[token], "Token already supported");
+        require(token != address(0), "New token address cannot be the zero address");
         supportedLPTokens[token] = true;
         supportedTokensArray.push(token);
         emit LPTokenSupportAdded(token);
