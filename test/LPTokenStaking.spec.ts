@@ -54,6 +54,22 @@ describe("LPStaking", function () {
         it("Should revert if token is not supported", async function () {
             await expect(lpStaking.removeLPTokenSupport(await token.getAddress())).to.be.revertedWith("Token not supported");
         });
+
+        it("Should not remove LP token support if there are staked tokens", async function () {
+            await lpStaking.addLPTokenSupport(await token.getAddress());
+            await token.transfer(user1.address, ethers.parseEther("100"));
+            await token.connect(user1).approve(lpStaking.getAddress(), ethers.parseEther("50"));
+            await lpStaking.connect(user1).stake(ethers.parseEther("50"), await token.getAddress());
+    
+            await expect(lpStaking.removeLPTokenSupport(await token.getAddress())).to.be.revertedWith("Users have staked tokens");
+        });
+    
+        it("Should remove LP token support if there are no staked tokens", async function () {
+            await lpStaking.addLPTokenSupport(await token.getAddress());
+            await lpStaking.removeLPTokenSupport(await token.getAddress());
+    
+            expect(await lpStaking.supportedLPTokens(await token.getAddress())).to.be.false;
+        });    
     });
 
     describe("Staking", function () {
