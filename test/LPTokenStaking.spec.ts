@@ -2,6 +2,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { MockERC20, LPStaking } from "../scripts/@types/index";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import { string } from "hardhat/internal/core/params/argumentTypes";
 
 describe("LPStaking", function () {
     
@@ -112,6 +113,25 @@ describe("LPStaking", function () {
             await expect(lpStaking.connect(user1).stake(ethers.parseEther("50"), await fakeToken.getAddress()))
                 .to.be.revertedWith("Token transfer failed");
         });
+
+        it("Should handle ERC20 tokens with transfer fees correctly", async function () {
+            const FeeToken = await ethers.getContractFactory("FeeToken", owner);
+            const feeToken = await FeeToken.deploy("Fee Token", "FEE", ethers.parseEther("1000").toString());
+    
+            await lpStaking.addLPTokenSupport(await feeToken.getAddress());
+            await feeToken.transfer(user1.address, ethers.parseEther("100"));
+            await feeToken.connect(user1).approve(lpStaking.getAddress(), ethers.parseEther("50"));
+    
+            await lpStaking.connect(user1).stake(ethers.parseEther("50"), await feeToken.getAddress());
+    
+            const contractBalance = await feeToken.balanceOf(await lpStaking.getAddress());
+            const userBalance = await lpStaking.balanceOf(await feeToken.getAddress(), user1.address);
+            
+            // Check that the actual received amount is less due to the transfer fee
+            expect(contractBalance).to.be.lessThan(ethers.parseEther("50"));
+            expect(userBalance).to.be.equal(contractBalance);
+        });
+    
     });
 
     describe("Unlocking", function () {
@@ -220,7 +240,31 @@ describe("LPStaking", function () {
             // expected to fail
             await expect(lpStaking.connect(user1).unstake(ethers.parseEther("25"), await fakeToken.getAddress()))
                 .to.be.revertedWith('Token transfer failed');
+
         });
+
+        it("Should handle ERC20 tokens with transfer fees correctly on unstake", async function () {
+            const FeeToken = await ethers.getContractFactory("FeeToken", owner);
+            const feeToken = await FeeToken.deploy("Fee Token", "FEE", ethers.parseEther("1000").toString());
+    
+            await lpStaking.addLPTokenSupport(await feeToken.getAddress());
+            await feeToken.transfer(user1.address, ethers.parseEther("100"));
+            await feeToken.connect(user1).approve(lpStaking.getAddress(), ethers.parseEther("50"));
+            await lpStaking.connect(user1).stake(ethers.parseEther("50"), await feeToken.getAddress());
+            await lpStaking.connect(user1).unlock(ethers.parseEther("25"), await feeToken.getAddress());
+    
+            // Fast forward time by 1 week
+            await ethers.provider.send("evm_increaseTime", [604800]);
+            await ethers.provider.send("evm_mine");
+    
+            await lpStaking.connect(user1).unstake(ethers.parseEther("25"), await feeToken.getAddress());
+    
+            const userBalance = await feeToken.balanceOf(user1.address);
+    
+            // Check that the actual received amount is less due to the transfer fee
+            expect(userBalance).to.be.lessThan(ethers.parseEther("75"));
+        });
+
     });
 
     describe("Pause/Unpause", function () {

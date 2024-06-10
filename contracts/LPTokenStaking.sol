@@ -70,24 +70,29 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
         require(supportedLPTokens[token], "Token not supported");
         require(amount > 0, "Amount must be greater than zero");
 
+        uint256 balanceBefore = IERC20(token).balanceOf(address(this));
         bool success = IERC20(token).transferFrom(msg.sender, address(this), amount);
         require(success, "Token transfer failed");
+
+        uint256 balanceAfter = IERC20(token).balanceOf(address(this));
+        uint256 actualReceived = balanceAfter - balanceBefore;
+        require(actualReceived > 0, "Token transfer failed");
 
         if (userBalances[msg.sender][token] == 0) {
             tokenUserCount[token]++;
         }
 
-        userBalances[msg.sender][token] += amount;
+        userBalances[msg.sender][token] += actualReceived;
         if (userSnapshots[msg.sender][token].initialAmountStaked == 0) {
             userSnapshots[msg.sender][token] = UserSnapshot({
-                initialAmountStaked: amount,
+                initialAmountStaked: actualReceived,
                 token: token
             });
         } else {
-            userSnapshots[msg.sender][token].initialAmountStaked += amount;
+            userSnapshots[msg.sender][token].initialAmountStaked += actualReceived;
         }
 
-        emit Staked(msg.sender, amount, token);
+        emit Staked(msg.sender, actualReceived, token);
     }
 
     function unlock(uint256 amount, address token) external whenNotPaused nonReentrant {
@@ -112,17 +117,22 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
         require(unlockInfo.amount >= amount, "Insufficient unlocked amount");
         require(block.timestamp >= unlockInfo.unlockAt, "Unlock period not completed");
 
-        userBalances[msg.sender][token] -= amount;
-        userUnlocks[msg.sender][token].amount -= amount;
+        uint256 balanceBefore = IERC20(token).balanceOf(address(this));
+        bool success = IERC20(token).transfer(msg.sender, amount);
+        require(success, "Token transfer failed");
+
+        uint256 balanceAfter = IERC20(token).balanceOf(address(this));
+        uint256 actualTransferred = balanceBefore - balanceAfter;
+        require(actualTransferred > 0, "Token transfer failed");
+
+        userBalances[msg.sender][token] -= actualTransferred;
+        userUnlocks[msg.sender][token].amount -= actualTransferred;
 
         if (userBalances[msg.sender][token] == 0) {
             tokenUserCount[token]--;
         }
 
-        bool success = IERC20(token).transfer(msg.sender, amount);
-        require(success, "Token transfer failed");
-
-        emit Unstaked(msg.sender, amount, token);
+        emit Unstaked(msg.sender, actualTransferred, token);
     }
 
     function balanceOf(address token, address userAddress) external view returns (uint256) {
