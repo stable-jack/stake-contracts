@@ -25,6 +25,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
     mapping(address => mapping(address => uint256)) private userBalances;
     mapping(address => mapping(address => UserUnlock)) public userUnlocks;
     mapping(address => mapping(address => UserSnapshot)) private userSnapshots;
+    mapping(address => uint256) private tokenUserCount; // Mapping to keep track of user count for each token
 
     uint256 public unlockDuration = 1 weeks;
     bool public paused = false;
@@ -71,6 +72,10 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
 
         IERC20(token).transferFrom(msg.sender, address(this), amount);
 
+        if (userBalances[msg.sender][token] == 0) {
+            tokenUserCount[token]++;
+        }
+
         userBalances[msg.sender][token] += amount;
         if (userSnapshots[msg.sender][token].initialAmountStaked == 0) {
             userSnapshots[msg.sender][token] = UserSnapshot({
@@ -109,6 +114,10 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
         userBalances[msg.sender][token] -= amount;
         userUnlocks[msg.sender][token].amount -= amount;
 
+        if (userBalances[msg.sender][token] == 0) {
+            tokenUserCount[token]--;
+        }
+
         IERC20(token).transfer(msg.sender, amount);
 
         emit Unstaked(msg.sender, amount, token);
@@ -137,12 +146,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
 
     function removeLPTokenSupport(address token) external onlyOwner {
         require(supportedLPTokens[token], "Token not supported");
-
-        for (uint256 i = 0; i < supportedTokensArray.length; i++) {
-            if (userBalances[supportedTokensArray[i]][token] > 0) {
-                revert("Users have staked tokens");
-            }
-        }
+        require(tokenUserCount[token] == 0, "Users have staked tokens");
 
         supportedLPTokens[token] = false;
 
