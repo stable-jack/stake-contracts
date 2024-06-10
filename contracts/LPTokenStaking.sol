@@ -201,4 +201,9 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
         require(newHexagate != address(0), "New hexagate address cannot be the zero address");
         hexagate = newHexagate;
     }
+    
+    function updateUnlockDuration(uint256 newDuration) external onlyOwner {
+        require(newDuration > 0, "Unlock duration must be greater than zero");
+        unlockDuration = newDuration;
+    }
 }
