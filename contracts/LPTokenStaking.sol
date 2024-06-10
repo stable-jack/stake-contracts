@@ -4,10 +4,11 @@ pragma solidity 0.8.20;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Ownable2StepUpgradeable } from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradeable {
+contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpgradeable {
     using SafeERC20 for IERC20;
 
     struct UserSnapshot {
@@ -56,7 +57,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, OwnableUpgradea
     function initialize(address _hexagate) external initializer {
         require(_hexagate != address(0), "New hexagate address cannot be the zero address");
         __ReentrancyGuard_init();
-        __Ownable_init(msg.sender);
+        __Ownable2Step_init();
 
         hexagate = _hexagate;
     }
