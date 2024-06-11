@@ -156,16 +156,6 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
         return balance;
     }
 
-    function balanceOfAllTokens(address userAddress) external view returns (uint256[] memory, address[] memory) {
-        uint256[] memory balances = new uint256[](supportedTokensArray.length);
-
-        for (uint256 i = 0; i < supportedTokensArray.length; ++i) {
-            balances[i] = userBalances[userAddress][supportedTokensArray[i]];
-        }
-
-        return (balances, supportedTokensArray);
-    }
-
     function addLPTokenSupport(address token) external onlyOwner {
         require(!supportedLPTokens[token], "Token already supported");
         require(token != address(0), "New token address cannot be the zero address");
