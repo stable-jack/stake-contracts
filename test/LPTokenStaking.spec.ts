@@ -1,8 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { MockERC20, LPStaking } from "../scripts/@types/index";
+import { MockERC20, LPStaking, MockERC1155 } from "../scripts/@types/index";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { string } from "hardhat/internal/core/params/argumentTypes";
 
 describe("LPStaking", function () {
     
@@ -23,6 +22,10 @@ describe("LPStaking", function () {
         lpStaking = await LPStaking.deploy();
 
         await lpStaking.initialize(hexagate.address);
+
+        // Accept ownership step
+        await lpStaking.connect(owner).transferOwnership(owner.address);
+        await lpStaking.connect(owner).acceptOwnership();
     });
 
     describe("Initialization", function () {
@@ -72,6 +75,37 @@ describe("LPStaking", function () {
             expect(await lpStaking.supportedLPTokens(await token.getAddress())).to.be.false;
         });    
     });
+
+    describe("ERC1155 Token Support", function () {
+        let erc1155Token: MockERC1155; // Assuming MockERC1155 is the mock contract with mint function
+
+        beforeEach(async function () {
+            const ERC1155Mock = await ethers.getContractFactory("MockERC1155", owner);
+            erc1155Token = await ERC1155Mock.deploy();
+        });
+
+        it("Should add ERC1155 token support", async function () {
+            await lpStaking.addERC1155TokenSupport(await erc1155Token.getAddress());
+            expect(await lpStaking.supportedERC1155Tokens(await erc1155Token.getAddress())).to.be.true;
+        });
+
+        it("Should remove ERC1155 token support", async function () {
+            await lpStaking.addERC1155TokenSupport(await erc1155Token.getAddress());
+            await lpStaking.removeERC1155TokenSupport(await erc1155Token.getAddress());
+            expect(await lpStaking.supportedERC1155Tokens(await erc1155Token.getAddress())).to.be.false;
+        });
+
+        it("Should revert if ERC1155 token is already supported", async function () {
+            await lpStaking.addERC1155TokenSupport(await erc1155Token.getAddress());
+            await expect(lpStaking.addERC1155TokenSupport(await erc1155Token.getAddress())).to.be.revertedWith("Token already supported");
+        });
+
+        it("Should revert if ERC1155 token is not supported", async function () {
+            await expect(lpStaking.removeERC1155TokenSupport(await erc1155Token.getAddress())).to.be.revertedWith("Token not supported");
+        });
+    });
+
+
 
     describe("Staking", function () {
         beforeEach(async function () {
@@ -134,6 +168,39 @@ describe("LPStaking", function () {
     
     });
 
+    describe("ERC1155 Staking", function () {
+        let erc1155Token: MockERC1155; // Assuming MockERC1155 is the mock contract with mint function
+
+        beforeEach(async function () {
+            const ERC1155Mock = await ethers.getContractFactory("MockERC1155", owner);
+            erc1155Token = await ERC1155Mock.deploy();
+            await lpStaking.addERC1155TokenSupport(await erc1155Token.getAddress());
+            await erc1155Token.mint(user1.address, 1, 100, "0x");
+        });
+
+        it("Should stake ERC1155 tokens correctly", async function () {
+            await erc1155Token.connect(user1).setApprovalForAll(lpStaking.getAddress(), true);
+            await lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 1, 50);
+
+            expect(await lpStaking.balanceOf1155(await erc1155Token.getAddress(), 1, user1.address)).to.equal(50);
+        });
+
+        it("Should emit Staked1155 event", async function () {
+            await erc1155Token.connect(user1).setApprovalForAll(lpStaking.getAddress(), true);
+            await expect(lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 1, 50))
+                .to.emit(lpStaking, "Staked1155")
+                .withArgs(user1.address, 1, 50, await erc1155Token.getAddress());
+        });
+
+        it("Should revert if ERC1155 token is not supported", async function () {
+            await expect(lpStaking.connect(user1).stake1155(user2.address, 1, 50)).to.be.revertedWith("Token not supported");
+        });
+
+        it("Should revert if amount is zero", async function () {
+            await expect(lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 1, 0)).to.be.revertedWith("Amount must be greater than zero");
+        });
+    });
+
     describe("Unlocking", function () {
         beforeEach(async function () {
             await lpStaking.addLPTokenSupport(await token.getAddress());
@@ -174,6 +241,50 @@ describe("LPStaking", function () {
                 .to.be.revertedWith("Token not supported");
         });
 
+    });
+
+    describe("ERC1155 Unlocking", function () {
+        let erc1155Token: MockERC1155; // Assuming MockERC1155 is the mock contract with mint function
+
+        beforeEach(async function () {
+            const ERC1155Mock = await ethers.getContractFactory("MockERC1155", owner);
+            erc1155Token = await ERC1155Mock.deploy();
+            await lpStaking.addERC1155TokenSupport(await erc1155Token.getAddress());
+            await erc1155Token.mint(user1.address, 1, 100, "0x");
+            await erc1155Token.connect(user1).setApprovalForAll(lpStaking.getAddress(), true);
+            await lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 1, 50);
+        });
+
+        it("Should unlock the entire staked ERC1155 amount", async function () {
+            await lpStaking.connect(user1).unlock1155(await erc1155Token.getAddress(), 1);
+
+            const unlockInfo = await lpStaking.userUnlocks(user1.address, await erc1155Token.getAddress());
+            expect(unlockInfo.amount).to.equal(50);
+        });
+
+        it("Should update unlock time correctly for ERC1155", async function () {
+            await lpStaking.connect(user1).unlock1155(await erc1155Token.getAddress(), 1);
+
+            const block = await ethers.provider.getBlock('latest');
+            if (!block) {
+                throw new Error("Failed to fetch the latest block.");
+            }
+            const unlockTime = block.timestamp + 604800;
+
+            const unlockInfo = await lpStaking.userUnlocks(user1.address, await erc1155Token.getAddress());
+            expect(unlockInfo.unlockAt).to.be.closeTo(unlockTime, 10);
+        });
+
+        it("Should revert if ERC1155 unlock is called again before unstaking", async function () {
+            await lpStaking.connect(user1).unlock1155(await erc1155Token.getAddress(), 1);
+
+            await expect(lpStaking.connect(user1).unlock1155(await erc1155Token.getAddress(), 1))
+                .to.be.revertedWith("Unlock already initialized");
+        });
+
+        it("Should revert if ERC1155 token is not supported", async function () {
+            await expect(lpStaking.connect(user1).unlock1155(user2.address, 1)).to.be.revertedWith("Token not supported");
+        });
     });
 
     describe("Unstaking", function () {
@@ -272,6 +383,40 @@ describe("LPStaking", function () {
             expect(userBalance).to.be.lessThan(ethers.parseEther("100"));
         });
 
+    });
+
+    describe("ERC1155 Unstaking", function () {
+        let erc1155Token: MockERC1155; // Assuming MockERC1155 is the mock contract with mint function
+
+        beforeEach(async function () {
+            const ERC1155Mock = await ethers.getContractFactory("MockERC1155", owner);
+            erc1155Token = await ERC1155Mock.deploy();
+            await lpStaking.addERC1155TokenSupport(await erc1155Token.getAddress());
+            await erc1155Token.mint(user1.address, 1, 100, "0x");
+            await erc1155Token.connect(user1).setApprovalForAll(lpStaking.getAddress(), true);
+            await lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 1, 50);
+            await lpStaking.connect(user1).unlock1155(await erc1155Token.getAddress(), 1);
+
+            await ethers.provider.send("evm_increaseTime", [604800]);
+            await ethers.provider.send("evm_mine");
+        });
+
+        it("Should unstake ERC1155 tokens correctly", async function () {
+            await lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 1);
+
+            expect(await erc1155Token.balanceOf(user1.address, 1)).to.equal(100);
+            expect(await lpStaking.balanceOf1155(await erc1155Token.getAddress(), 1, user1.address)).to.equal(0);
+        });
+
+        it("Should emit Unstaked1155 event", async function () {
+            await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 1))
+                .to.emit(lpStaking, "Unstaked1155")
+                .withArgs(user1.address, 1, 50, await erc1155Token.getAddress());
+        });
+
+        it("Should revert if ERC1155 token is not supported", async function () {
+            await expect(lpStaking.connect(user1).unstake1155(user2.address, 1)).to.be.revertedWith("Token not supported");
+        });
     });
 
     describe("Pause/Unpause", function () {
