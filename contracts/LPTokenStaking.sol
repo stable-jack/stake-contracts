@@ -44,8 +44,10 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
     
     mapping(address => mapping(address => uint256)) private userBalances;
     mapping(address => mapping(address => mapping(uint256 => uint256))) private userBalances1155;
-
+    
+    
     mapping(address => mapping(address => UserUnlock)) public userUnlocks;
+    mapping(address => mapping(address => mapping(uint256 => UserUnlock))) public userUnlocks1155;
     mapping(address => mapping(address => UserSnapshot)) private userSnapshots;
     mapping(address => uint256) private tokenUserCount; // Mapping to keep track of user count for each token
 
@@ -182,10 +184,10 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
         uint256 userBalance = userBalances1155[msg.sender][token][id];
         require(userBalance != 0, "Insufficient balance");
 
-        UserUnlock storage unlockInfo = userUnlocks[msg.sender][token];
+        UserUnlock storage unlockInfo = userUnlocks1155[msg.sender][token][id];
         require(!unlockInfo.initialized, "Unlock already initialized");
 
-        userUnlocks[msg.sender][token] = UserUnlock({
+        userUnlocks1155[msg.sender][token][id] = UserUnlock({
             amount: userBalance,
             token: token,
             unlockAt: block.timestamp + unlockDuration,
@@ -225,11 +227,11 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
     function unstake1155(address token, uint256 id) external whenNotPaused nonReentrant {
         require(supportedERC1155Tokens[token], "Token not supported");
 
-        UserUnlock memory unlockInfo = userUnlocks[msg.sender][token];
+        UserUnlock memory unlockInfo = userUnlocks1155[msg.sender][token][id];
         require(block.timestamp >= unlockInfo.unlockAt, "Unlock period not completed");
+        require(unlockInfo.id == id, "Token ID does not match unlocked token");
         require(unlockInfo.amount != 0, "No unlocked amount available");
-        require(unlockInfo.id == id, "Token ID does not match unlocked token"); // Ensure token ID matches
-
+         
         uint256 amountToUnstake = unlockInfo.amount;
 
         uint256 balanceBefore = IERC1155(token).balanceOf(address(this), id);
@@ -240,7 +242,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
         require(actualTransferred != 0, "Token transfer failed");
 
         userBalances1155[msg.sender][token][id] -= actualTransferred;
-        delete userUnlocks[msg.sender][token];
+        delete userUnlocks1155[msg.sender][token][id];
 
         if(userBalances1155[msg.sender][token][id] == 0) {
             tokenUserCount[token]--;
@@ -248,6 +250,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
 
         emit Unstaked1155(msg.sender, id, actualTransferred, token);
     }
+
 
     function balanceOf(address token, address userAddress) external view returns (uint256) {
         uint256 balance = userBalances[userAddress][token];

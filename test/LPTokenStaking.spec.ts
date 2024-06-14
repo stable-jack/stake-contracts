@@ -257,7 +257,7 @@ describe("LPStaking", function () {
         it("Should unlock the entire staked ERC1155 amount", async function () {
             await lpStaking.connect(user1).unlock1155(await erc1155Token.getAddress(), 1);
 
-            const unlockInfo = await lpStaking.userUnlocks(user1.address, await erc1155Token.getAddress());
+            const unlockInfo = await lpStaking.userUnlocks1155(user1.address, await erc1155Token.getAddress(), 1);
             expect(unlockInfo.amount).to.equal(50);
         });
 
@@ -270,7 +270,7 @@ describe("LPStaking", function () {
             }
             const unlockTime = block.timestamp + 604800;
 
-            const unlockInfo = await lpStaking.userUnlocks(user1.address, await erc1155Token.getAddress());
+            const unlockInfo = await lpStaking.userUnlocks1155(user1.address, await erc1155Token.getAddress(), 1);
             expect(unlockInfo.unlockAt).to.be.closeTo(unlockTime, 10);
         });
 
@@ -490,7 +490,7 @@ describe("LPStaking", function () {
             await lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 1, 50);
             await lpStaking.connect(user1).unlock1155(await erc1155Token.getAddress(), 1);
 
-            const unlockInfo = await lpStaking.userUnlocks(user1.address, await erc1155Token.getAddress());
+            const unlockInfo = await lpStaking.userUnlocks1155(user1.address, await erc1155Token.getAddress(), 1);
             expect(unlockInfo.amount).to.equal(50);
             expect(unlockInfo.id).to.equal(1);
         });
@@ -505,6 +505,63 @@ describe("LPStaking", function () {
 
             await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 2)).to.be.revertedWith("Token ID does not match unlocked token");
             await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 1)).to.emit(lpStaking, "Unstaked1155").withArgs(user1.address, 1, 50, await erc1155Token.getAddress());
+        });
+    });
+
+    describe("LPStaking - Multiple ERC1155 Unlocks", function () {
+        
+        let lpStaking: LPStaking;
+        let owner: HardhatEthersSigner;
+        let user1: HardhatEthersSigner;
+        let erc1155Token: MockERC1155;
+
+        beforeEach(async function () {
+            [owner, user1] = await ethers.getSigners();
+
+            const ERC1155Mock = await ethers.getContractFactory("MockERC1155", owner);
+            erc1155Token = await ERC1155Mock.deploy();
+
+            const LPStaking = await ethers.getContractFactory("LPStaking", owner);
+            lpStaking = await LPStaking.deploy();
+            await lpStaking.initialize(owner.address);
+
+            // Accept ownership step
+            await lpStaking.connect(owner).transferOwnership(owner.address);
+            await lpStaking.connect(owner).acceptOwnership();
+
+            await lpStaking.addERC1155TokenSupport(await erc1155Token.getAddress());
+            await erc1155Token.mint(user1.address, 1, 100, "0x");
+            await erc1155Token.mint(user1.address, 2, 50, "0x");
+            await erc1155Token.connect(user1).setApprovalForAll(lpStaking.getAddress(), true);
+        });
+
+        it("Should unlock multiple ERC1155 tokens correctly", async function () {
+            await lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 1, 50);
+            await lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 2, 25);
+            await lpStaking.connect(user1).unlock1155(await erc1155Token.getAddress(), 1);
+            await lpStaking.connect(user1).unlock1155(await erc1155Token.getAddress(), 2);
+
+            const unlockInfo1 = await lpStaking.userUnlocks1155(user1.address, await erc1155Token.getAddress(), 1);
+            const unlockInfo2 = await lpStaking.userUnlocks1155(user1.address, await erc1155Token.getAddress(), 2);
+
+            expect(unlockInfo1.amount).to.equal(50);
+            expect(unlockInfo1.id).to.equal(1);
+            expect(unlockInfo2.amount).to.equal(25);
+            expect(unlockInfo2.id).to.equal(2);
+        });
+
+        it("Should only allow unstaking the unlocked ERC1155 tokens", async function () {
+            await lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 1, 50);
+            await lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 2, 25);
+            await lpStaking.connect(user1).unlock1155(await erc1155Token.getAddress(), 1);
+            await lpStaking.connect(user1).unlock1155(await erc1155Token.getAddress(), 2);
+
+            await ethers.provider.send("evm_increaseTime", [604800]);
+            await ethers.provider.send("evm_mine");
+
+            await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 3)).to.be.revertedWith("Token ID does not match unlocked token");
+            await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 1)).to.emit(lpStaking, "Unstaked1155").withArgs(user1.address, 1, 50, await erc1155Token.getAddress());
+            await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 2)).to.emit(lpStaking, "Unstaked1155").withArgs(user1.address, 2, 25, await erc1155Token.getAddress());
         });
     });
 });
