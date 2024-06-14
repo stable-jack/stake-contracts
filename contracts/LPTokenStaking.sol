@@ -26,6 +26,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
         uint256 amount;
         address token;
         uint256 unlockAt;
+        uint256 id;
         bool initialized;
     }
 
@@ -169,6 +170,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
             amount: userBalance,
             token: token,
             unlockAt: block.timestamp + unlockDuration,
+            id: 0,
             initialized: true
         });
 
@@ -187,6 +189,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
             amount: userBalance,
             token: token,
             unlockAt: block.timestamp + unlockDuration,
+            id: id, // Store the token ID
             initialized: true
         });
 
@@ -219,13 +222,13 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
         emit Unstaked(msg.sender, actualTransferred, token);
     }
 
-
     function unstake1155(address token, uint256 id) external whenNotPaused nonReentrant {
         require(supportedERC1155Tokens[token], "Token not supported");
 
         UserUnlock memory unlockInfo = userUnlocks[msg.sender][token];
         require(block.timestamp >= unlockInfo.unlockAt, "Unlock period not completed");
         require(unlockInfo.amount != 0, "No unlocked amount available");
+        require(unlockInfo.id == id, "Token ID does not match unlocked token"); // Ensure token ID matches
 
         uint256 amountToUnstake = unlockInfo.amount;
 
@@ -239,7 +242,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
         userBalances1155[msg.sender][token][id] -= actualTransferred;
         delete userUnlocks[msg.sender][token];
 
-        if(userBalances[msg.sender][token] == 0) {
+        if(userBalances1155[msg.sender][token][id] == 0) {
             tokenUserCount[token]--;
         }
 

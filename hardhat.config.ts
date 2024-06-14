@@ -9,6 +9,9 @@ import "@nomiclabs/hardhat-vyper";
 import "@typechain/hardhat";
 import "hardhat-gas-reporter";
 import "solidity-coverage";
+import * as tenderly from "@tenderly/hardhat-tenderly";
+
+// tenderly.setup({ automaticVerifications: true });
 
 dotenv.config();
 
@@ -16,8 +19,6 @@ if (process.env.PROXY) {
   const proxyAgent = new ProxyAgent(process.env.PROXY);
   setGlobalDispatcher(proxyAgent);
 }
-
-const accounts = process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [];
 
 // You need to export an object to set up your config
 // Go to https://hardhat.org/config/ to learn more
@@ -51,6 +52,11 @@ const config: HardhatUserConfig = {
     virtualAvalancheCChain: {
       url: "https://virtual.avalanche.rpc.tenderly.co/2c42db45-5f38-4eb0-a2d3-e7c036531d5b",
     },
+  },
+  tenderly: {
+    // https://docs.tenderly.co/account/projects/account-project-slug
+    project: "project",
+    username: "solomonNSI",
   },
   typechain: {
     outDir: "./scripts/@types",

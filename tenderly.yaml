@@ -1,3 +1,18 @@
 account_id: 2ec8f855-e1e8-49dc-93dc-e8bc2ee2fd57
+actions:
+  solomonnsi/project:
+    runtime: v2
+    sources: actions
+    specs:
+      example:
+        description: Example Web3 Action that logs block number once it is mined.
+        function: example:blockHelloWorldFn
+        trigger:
+          type: block
+          block:
+            network:
+              - 1
+            blocks: 10
+        execution_type: parallel
 project_slug: project
 provider: Hardhat
