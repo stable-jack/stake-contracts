@@ -69,6 +69,9 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
     event Paused();
     event Unpaused();
 
+    event HexagateAddressUpdated(address indexed newAddress);
+    event UnlockDurationUpdated(uint256 newDuration);
+
     /*************
      * Modifiers *
      *************/
@@ -251,7 +254,6 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
         emit Unstaked1155(msg.sender, id, actualTransferred, token);
     }
 
-
     function balanceOf(address token, address userAddress) external view returns (uint256) {
         uint256 balance = userBalances[userAddress][token];
         UserUnlock memory unlockInfo = userUnlocks[userAddress][token];
@@ -332,11 +334,13 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
     function updateHexagateAddress(address newHexagate) external onlyOwner {
         require(newHexagate != address(0), "New hexagate address cannot be the zero address");
         hexagate = newHexagate;
+        emit HexagateAddressUpdated(newHexagate);
     }
     
     function updateUnlockDuration(uint256 newDuration) external onlyOwner {
         require(newDuration > 0, "Unlock duration must be greater than zero");
         unlockDuration = newDuration;
+        emit UnlockDurationUpdated(newDuration);
     }
 
     function onERC1155Received(
