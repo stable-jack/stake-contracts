@@ -88,7 +88,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
 
     // Initializer function to replace the constructor
     function initialize(address _hexagate) external initializer {
-        require(_hexagate != address(0), "New hexagate address cannot be the zero address");
+        require(_hexagate != address(0), "zero address");
         __ReentrancyGuard_init();
         __Ownable2Step_init();
 
@@ -108,7 +108,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
 
     function stake(uint256 amount, address token) external whenNotPaused nonReentrant {
         require(supportedLPTokens[token], "Token not supported");
-        require(amount != 0, "Amount must be greater than zero");
+        require(amount != 0, "Amount < zero");
 
         uint256 balanceBefore = IERC20(token).balanceOf(address(this));
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount); // Use safeTransferFrom
@@ -136,7 +136,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
 
     function stake1155(address token, uint256 id, uint256 amount) external whenNotPaused nonReentrant {
         require(supportedERC1155Tokens[token], "Token not supported");
-        require(amount != 0, "Amount must be greater than zero");
+        require(amount != 0, "Amount < zero");
 
         uint256 balanceBefore = IERC1155(token).balanceOf(address(this), id);
         IERC1155(token).safeTransferFrom(msg.sender, address(this), id, amount, "");
@@ -232,7 +232,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
 
         UserUnlock memory unlockInfo = userUnlocks1155[msg.sender][token][id];
         require(block.timestamp >= unlockInfo.unlockAt, "Unlock period not completed");
-        require(unlockInfo.id == id, "Token ID does not match unlocked token");
+        require(unlockInfo.id == id, "Token ID 404");
         require(unlockInfo.amount != 0, "No unlocked amount available");
          
         uint256 amountToUnstake = unlockInfo.amount;
@@ -278,7 +278,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
 
     function addLPTokenSupport(address token) external onlyOwner {
         require(!supportedLPTokens[token], "Token already supported");
-        require(token != address(0), "New token address cannot be the zero address");
+        require(token != address(0), "zero address");
         supportedLPTokens[token] = true;
         supportedTokensArray.push(token);
         emit LPTokenSupportAdded(token);
@@ -286,7 +286,7 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
 
     function addERC1155TokenSupport(address token) external onlyOwner {
         require(!supportedERC1155Tokens[token], "Token already supported");
-        require(token != address(0), "New token address cannot be the zero address");
+        require(token != address(0), "zero address");
         supportedERC1155Tokens[token] = true;
         supportedTokensArray.push(token);
         emit ERC1155TokenSupportAdded(token);
@@ -332,13 +332,13 @@ contract LPStaking is Initializable, ReentrancyGuardUpgradeable, Ownable2StepUpg
 
     // Add the updateHexagateAddress function
     function updateHexagateAddress(address newHexagate) external onlyOwner {
-        require(newHexagate != address(0), "New hexagate address cannot be the zero address");
+        require(newHexagate != address(0), "zero address");
         hexagate = newHexagate;
         emit HexagateAddressUpdated(newHexagate);
     }
     
     function updateUnlockDuration(uint256 newDuration) external onlyOwner {
-        require(newDuration > 0, "Unlock duration must be greater than zero");
+        require(newDuration != 0, "Unlock < zero");
         unlockDuration = newDuration;
         emit UnlockDurationUpdated(newDuration);
     }

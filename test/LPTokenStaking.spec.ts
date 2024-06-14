@@ -132,7 +132,7 @@ describe("LPStaking", function () {
         });
 
         it("Should revert if amount is zero", async function () {
-            await expect(lpStaking.connect(user1).stake(0, await token.getAddress())).to.be.revertedWith("Amount must be greater than zero");
+            await expect(lpStaking.connect(user1).stake(0, await token.getAddress())).to.be.revertedWith("Amount < zero");
         });
 
         it("Should revert if ERC20 transferFrom returns false", async function () {
@@ -196,7 +196,7 @@ describe("LPStaking", function () {
         });
 
         it("Should revert if amount is zero", async function () {
-            await expect(lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 1, 0)).to.be.revertedWith("Amount must be greater than zero");
+            await expect(lpStaking.connect(user1).stake1155(await erc1155Token.getAddress(), 1, 0)).to.be.revertedWith("Amount < zero");
         });
     });
 
@@ -503,7 +503,7 @@ describe("LPStaking", function () {
             await ethers.provider.send("evm_increaseTime", [604800]);
             await ethers.provider.send("evm_mine");
 
-            await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 2)).to.be.revertedWith("Token ID does not match unlocked token");
+            await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 2)).to.be.revertedWith("Token ID 404");
             await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 1)).to.emit(lpStaking, "Unstaked1155").withArgs(user1.address, 1, 50, await erc1155Token.getAddress());
         });
     });
@@ -559,7 +559,7 @@ describe("LPStaking", function () {
             await ethers.provider.send("evm_increaseTime", [604800]);
             await ethers.provider.send("evm_mine");
 
-            await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 3)).to.be.revertedWith("Token ID does not match unlocked token");
+            await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 3)).to.be.revertedWith("Token ID 404");
             await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 1)).to.emit(lpStaking, "Unstaked1155").withArgs(user1.address, 1, 50, await erc1155Token.getAddress());
             await expect(lpStaking.connect(user1).unstake1155(await erc1155Token.getAddress(), 2)).to.emit(lpStaking, "Unstaked1155").withArgs(user1.address, 2, 25, await erc1155Token.getAddress());
         });
